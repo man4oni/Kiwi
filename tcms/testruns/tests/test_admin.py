@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from tcms.tests import LoggedInTestCase
 from tcms.utils.permissions import initiate_user_with_default_setups
 from tcms.tests.factories import TestRunFactory, UserFactory
-from tcms.testruns.models import TestRun
+from tcms.testruns.models import TestRun, TestExecutionStatus
 
 
 class TestTestRunAdmin(LoggedInTestCase):
@@ -56,7 +56,7 @@ class TestTestExecutionStatusAdmin(LoggedInTestCase):
         super().setUpTestData()
         initiate_user_with_default_setups(cls.tester)
 
-    def test_admin_testrun_execution_status_color(self):
+    def test_changelist_view_color_column(self):
         response = self.client.get(reverse('admin:testruns_testexecutionstatus_changelist'))
         self.assertContains(response, (
             '''
@@ -65,3 +65,35 @@ class TestTestExecutionStatusAdmin(LoggedInTestCase):
                 #92d400
             </span>
             '''))
+
+    def test_changelist_view_icon_column(self):
+        response = self.client.get(reverse('admin:testruns_testexecutionstatus_changelist'))
+        self.assertContains(response, (
+            '''
+            <span class="fa fa-check-circle-o" style="font-size: 18px; color: #92d400;"></span>
+            '''))
+
+
+class TestTestExecutionStatusDelete(LoggedInTestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        initiate_user_with_default_setups(cls.tester)
+        statuses = TestExecutionStatus.objects.all()
+        cls.negative = []
+        for status in statuses:
+            if status.weight < 0:
+                cls.negative.append(status.pk)
+
+    def test_test_execution_statuses_can_be_deleted(self):
+
+        for exe_status in self.negative[1:]:
+            response = self.client.get(reverse('admin:testruns_testexecutionstatus_delete',
+                                               args=[exe_status]))
+            self.assertContains(response, _("Yes, I'm sure"))
+
+            response = self.client.post(reverse('admin:testruns_testexecutionstatus_delete',
+                                                args=[exe_status]), {'post': 'yes'}, follow=True)
+            self.assertRedirects(response, reverse('admin:testruns_testexecutionstatus_changelist'))
+            self.assertEqual(TestExecutionStatus.objects.filter(pk=exe_status).exists(), False)
